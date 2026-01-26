@@ -31,7 +31,7 @@ Add to your Cursor MCP configuration file:
   "mcpServers": {
     "confluence": {
       "command": "python3",
-      "args": ["/absolute/path/to/confluence-mcp/server.py"],
+      "args": ["/absolute/path/to/confluence-mcp/python/server.py"],
       "env": {
         "CONFLUENCE_URL": "https://your-domain.atlassian.net",
         "CONFLUENCE_EMAIL": "your-email@example.com",
@@ -42,7 +42,7 @@ Add to your Cursor MCP configuration file:
 }
 ```
 
-**Important:** Replace `/absolute/path/to/confluence-mcp/server.py` with the actual absolute path to your server.py file.
+**Important:** Replace `/absolute/path/to/confluence-mcp/python/server.py` with the actual absolute path to your `python/server.py` file.
 
 ### Step 3: Restart Cursor
 
@@ -57,7 +57,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "confluence": {
       "command": "python3",
-      "args": ["/absolute/path/to/confluence-mcp/server.py"],
+      "args": ["/absolute/path/to/confluence-mcp/python/server.py"],
       "env": {
         "CONFLUENCE_URL": "https://your-domain.atlassian.net",
         "CONFLUENCE_EMAIL": "your-email@example.com",
@@ -82,7 +82,7 @@ You can test the server manually:
 
 ```bash
 cd confluence-mcp
-python3 server.py
+python3 python/server.py
 ```
 
 The server communicates via stdio, so it's designed to be used by MCP clients, not directly.
@@ -106,4 +106,3 @@ The server communicates via stdio, so it's designed to be used by MCP clients, n
 ### Permission errors
 - The API token inherits permissions from the user account
 - Ensure the account has permission to view the spaces/pages you're trying to access
-

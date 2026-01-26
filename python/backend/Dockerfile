@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY . /app
 
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app/backend:/app
+ENV PYTHONPATH=/app/python/backend:/app/python:/app
 
 EXPOSE 8000
 

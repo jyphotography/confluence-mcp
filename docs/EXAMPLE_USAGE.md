@@ -127,9 +127,3 @@ The MCP server enables AI assistants to:
 - **Update documentation**: Know what needs to be updated when code changes
 - **Avoid breaking changes**: Understand dependencies and relationships
 
-
-
-
-
-
-

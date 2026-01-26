@@ -66,13 +66,13 @@ The server requires the following environment variables:
 
 1. **Test your connection:**
 ```bash
-python3 test_connection.py
+python3 python/test_connection.py
 ```
 
 2. **Start the weekly draft backend API:**
 
 ```bash
-PYTHONPATH="backend:." .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+PYTHONPATH="python/backend:python:." .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 3. **Start the web UI:**
@@ -85,7 +85,7 @@ npm run dev
 
 Then open `http://localhost:5173`.
 
-4. **Configure your MCP client** (see CONFIGURATION.md for details)
+4. **Configure your MCP client** (see `docs/CONFIGURATION.md` for details)
 
 ## Usage
 
@@ -100,7 +100,7 @@ export CONFLUENCE_EMAIL="your-email@example.com"
 export CONFLUENCE_API_TOKEN="your-api-token"
 
 # Run the test script
-python3 test_connection.py
+python3 python/test_connection.py
 ```
 
 ### Running as MCP Server
@@ -114,7 +114,7 @@ Configure in your MCP client settings:
   "mcpServers": {
     "confluence": {
       "command": "python",
-      "args": ["/path/to/confluence-mcp/server.py"],
+      "args": ["/path/to/confluence-mcp/python/server.py"],
       "env": {
         "CONFLUENCE_URL": "https://your-domain.atlassian.net",
         "CONFLUENCE_EMAIL": "your-email@example.com",
@@ -218,8 +218,8 @@ AI: [Uses generate_weekly_drafts tool, returns two markdown drafts]
 
 To extend the server with additional functionality:
 
-1. Add new tools in `server.py` following the MCP tool format
-2. Implement the Confluence API calls in `confluence_client.py`
+1. Add new tools in `python/server.py` following the MCP tool format
+2. Implement the Confluence API calls in `python/confluence_client.py`
 3. Update this README with new tool documentation
 
 ## License

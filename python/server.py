@@ -18,11 +18,18 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent, Resource
 
+# Repo root (used for imports + reading .env + saving files)
+workspace_root = Path(__file__).resolve().parents[1]
+
+# Ensure repo-root modules are importable even when the process cwd is elsewhere
+# (e.g., MCP clients often launch with cwd != repo root).
+if str(workspace_root) not in sys.path:
+    sys.path.insert(0, str(workspace_root))
+
 # Try to load .env file if python-dotenv is available
 try:
     from dotenv import load_dotenv
-    # Load .env file from the same directory as this script
-    env_path = Path(__file__).parent / ".env"
+    env_path = workspace_root / ".env"
     if env_path.exists():
         load_dotenv(env_path)
 except ImportError:
@@ -39,10 +46,6 @@ app = Server("confluence-mcp")
 
 # Initialize Confluence client
 confluence_client: Optional[ConfluenceClient] = None
-
-# Get workspace root for saving Jira summaries
-workspace_root = Path(__file__).parent.parent
-
 
 def get_confluence_client() -> ConfluenceClient:
     """Get or create the Confluence client instance."""

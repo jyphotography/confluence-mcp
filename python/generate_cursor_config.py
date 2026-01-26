@@ -8,10 +8,13 @@ import os
 import sys
 from pathlib import Path
 
+workspace_root = Path(__file__).resolve().parents[1]
+
 # Try to load .env
 try:
     from dotenv import load_dotenv
-    env_path = Path(__file__).parent / ".env"
+
+    env_path = workspace_root / ".env"
     if env_path.exists():
         load_dotenv(env_path)
     else:
@@ -39,7 +42,7 @@ if not all([url, email, api_token]):
     print(f"   Missing: {', '.join(missing)}")
     sys.exit(1)
 
-# Get absolute path to server.py
+# Get absolute path to python/server.py
 server_path = Path(__file__).parent / "server.py"
 server_abs_path = str(server_path.resolve())
 
@@ -52,8 +55,8 @@ config = {
             "env": {
                 "CONFLUENCE_URL": url,
                 "CONFLUENCE_EMAIL": email,
-                "CONFLUENCE_API_TOKEN": api_token
-            }
+                "CONFLUENCE_API_TOKEN": api_token,
+            },
         }
     }
 }
@@ -86,19 +89,19 @@ print()
 # Check if file exists
 if cursor_config_path.exists():
     try:
-        with open(cursor_config_path, 'r') as f:
+        with open(cursor_config_path, "r") as f:
             existing_config = json.load(f)
-        
+
         if "mcpServers" in existing_config and "confluence" in existing_config.get("mcpServers", {}):
             print("⚠️  Confluence MCP server already configured!")
             print("   Current config:")
             print(json.dumps(existing_config["mcpServers"]["confluence"], indent=2))
             print()
             response = input("Replace existing configuration? (y/n): ")
-            if response.lower() != 'y':
+            if response.lower() != "y":
                 print("Cancelled.")
                 sys.exit(0)
-            
+
             # Merge with existing
             existing_config["mcpServers"]["confluence"] = config["mcpServers"]["confluence"]
             config = existing_config
@@ -111,13 +114,13 @@ if cursor_config_path.exists():
     except json.JSONDecodeError:
         print("⚠️  Existing config file is not valid JSON")
         response = input("Overwrite it? (y/n): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Cancelled.")
             sys.exit(0)
 
 # Write config
 cursor_config_path.parent.mkdir(parents=True, exist_ok=True)
-with open(cursor_config_path, 'w') as f:
+with open(cursor_config_path, "w") as f:
     json.dump(config, f, indent=2)
 
 print("✅ Cursor MCP configuration created successfully!")
@@ -126,10 +129,4 @@ print("📋 Next steps:")
 print("   1. Restart Cursor completely (quit and reopen)")
 print("   2. The Confluence MCP tools should now be available")
 print("   3. Try asking Cursor to search your Confluence pages!")
-
-
-
-
-
-
 

@@ -2,7 +2,7 @@
 # Setup script for Cursor MCP configuration
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_PATH="$SCRIPT_DIR/server.py"
+SERVER_PATH="$SCRIPT_DIR/python/server.py"
 
 echo "🔧 Setting up Confluence MCP for Cursor"
 echo ""

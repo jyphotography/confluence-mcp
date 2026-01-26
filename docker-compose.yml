@@ -2,7 +2,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: python/backend/Dockerfile
     environment:
       # Reads from your host .env if present (docker compose automatically loads it)
       - SQLITE_PATH=data/weekly_progress.db

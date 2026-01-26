@@ -29,7 +29,7 @@ This guide will help you set up the Confluence MCP server with a `.env` file and
 Before configuring Cursor, test that your credentials work:
 
 ```bash
-python3 test_connection.py
+python3 python/test_connection.py
 ```
 
 If you see ✅ messages, your credentials are correct!
@@ -41,7 +41,7 @@ If you see ✅ messages, your credentials are correct!
 Run the Python script that reads your `.env` and generates the Cursor config:
 
 ```bash
-python3 generate_cursor_config.py
+python3 python/generate_cursor_config.py
 ```
 
 This script will:
@@ -74,7 +74,7 @@ chmod +x setup_cursor.sh
      "mcpServers": {
        "confluence": {
          "command": "python3",
-         "args": ["/path/to/confluence-mcp/server.py"],
+         "args": ["/path/to/confluence-mcp/python/server.py"],
          "env": {
            "CONFLUENCE_URL": "https://your-domain.atlassian.net",
            "CONFLUENCE_EMAIL": "your-email@example.com",
@@ -88,7 +88,7 @@ chmod +x setup_cursor.sh
    If the file already exists, add the `"confluence"` entry to the `"mcpServers"` object.
 
 3. **Update the paths:**
-   - Replace `/path/to/confluence-mcp/server.py` with the actual path to your `server.py`
+   - Replace `/path/to/confluence-mcp/python/server.py` with the actual path to your `python/server.py`
    - Update the environment variables with your actual credentials
 
 ### Option C: Using .env File (Alternative)
@@ -120,13 +120,13 @@ If the MCP server is working, Cursor will be able to search and retrieve your Co
 ### MCP server not loading in Cursor
 
 1. Check that `mcp.json` is in the correct location
-2. Verify the path to `server.py` is correct and absolute
+2. Verify the path to `python/server.py` is correct and absolute
 3. Make sure `python3` is in your PATH
 4. Check Cursor's developer console for errors (Help → Toggle Developer Tools)
 
 ### Server.py error when run directly
 
-**This is normal!** The server is designed to run via stdio communication with Cursor, not directly. Don't run `python3 server.py` manually - Cursor will start it automatically.
+**This is normal!** The server is designed to run via stdio communication with Cursor, not directly. Don't run `python3 python/server.py` manually - Cursor will start it automatically.
 
 ## Security Notes
 

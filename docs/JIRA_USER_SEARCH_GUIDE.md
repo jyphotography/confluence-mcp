@@ -102,3 +102,4 @@ POST /rest/api/3/search/jql
 - [Atlassian Support: Get Account ID](https://support.atlassian.com/atlassian-cloud/kb/get-an-atlassian-cloud-users-account-id/)
 - [Jira REST API: User Search](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-user-search/#api-rest-api-3-user-search-get)
 - [Jira REST API: Search Issues](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-post)
+
