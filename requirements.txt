@@ -1,0 +1,23 @@
+# MCP Server dependencies
+mcp>=0.9.0
+httpx>=0.25.0
+
+# Optional: for loading .env files in test script
+python-dotenv>=1.0.0
+
+# For Jira API access
+requests>=2.31.0
+
+# Backend API (FastAPI)
+fastapi>=0.110.0
+uvicorn>=0.27.0
+sqlmodel>=0.0.16
+pydantic-settings>=2.2.0
+
+# Templates
+jinja2>=3.1.0
+
+# Testing
+pytest>=8.0.0
+responses>=0.25.0
+

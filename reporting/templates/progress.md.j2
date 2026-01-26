@@ -1,0 +1,48 @@
+## Weekly Progress ({{ week_start }} → {{ week_end }})
+
+### Highlights / outcomes
+
+{% if highlights %}
+{% for h in highlights %}
+- {{ h }}
+{% endfor %}
+{% else %}
+- (No Jira items found in the selected window)
+{% endif %}
+
+### Progress (detailed)
+
+{% if this_week_tickets %}
+{% for t in this_week_tickets %}
+- [{{ t.key }}] {{ t.summary }} ({{ t.issue_type }} · {{ t.status }}){% if t.url %} — {{ t.url }}{% endif %}
+{% endfor %}
+{% else %}
+- (No items)
+{% endif %}
+
+### Risks / blockers
+
+- (Add blockers, risks, and mitigation here)
+
+### Next week priorities
+
+{% if next_week_tickets %}
+{% for t in next_week_tickets %}
+- [{{ t.key }}] {{ t.summary }} ({{ t.issue_type }} · {{ t.status }}){% if t.url %} — {{ t.url }}{% endif %}
+{% endfor %}
+{% else %}
+- (No planned items detected)
+{% endif %}
+
+### Asks / decisions needed
+
+- (Add any decisions you need from your manager)
+
+{% if confluence_context %}
+### Relevant docs / context
+
+{% for c in confluence_context %}
+- {{ c.title }}{% if c.url %} — {{ c.url }}{% endif %}{% if c.excerpt %}\n  - {{ c.excerpt }}{% endif %}
+{% endfor %}
+{% endif %}
+

@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      # Reads from your host .env if present (docker compose automatically loads it)
+      - SQLITE_PATH=data/weekly_progress.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./2026:/app/2026
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+

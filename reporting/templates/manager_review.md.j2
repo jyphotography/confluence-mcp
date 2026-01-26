@@ -1,0 +1,18 @@
+This Week:
+{% if this_week %}
+{% for w in this_week %}
+• {{ w }}
+{% endfor %}
+{% else %}
+• (No Jira items found in the selected window)
+{% endif %}
+
+Next Week:
+{% if next_week %}
+{% for w in next_week %}
+• {{ w }}
+{% endfor %}
+{% else %}
+• (No planned items detected)
+{% endif %}
+
