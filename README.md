@@ -15,6 +15,10 @@ A Model Context Protocol (MCP) server that enables AI assistants to search and r
 
 Weekly updates are easy to forget and hard to write consistently. This project turns your Jira activity (optionally combined with a few Confluence “context” pages) into manager-ready weekly drafts with a repeatable structure: highlights, progress, risks, next steps, and asks.
 
+## Screenshot
+
+![Weekly Progress + Manager Review web UI](result.png)
+
 ## Prerequisites
 
 - Python 3.11+ recommended (works with your existing MCP setup)
