@@ -9,7 +9,8 @@ from app.core.config import get_settings
 
 def _get_sqlite_url() -> str:
     settings = get_settings()
-    db_path = Path(__file__).resolve().parents[3] / settings.sqlite_path
+    # session.py -> db -> app -> backend -> python -> repo root
+    db_path = Path(__file__).resolve().parents[4] / settings.sqlite_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return f"sqlite:///{db_path}"
 

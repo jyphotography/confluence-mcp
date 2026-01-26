@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=str(Path(__file__).resolve().parents[3] / ".env"),
+        # config.py -> core -> app -> backend -> python -> repo root
+        env_file=str(Path(__file__).resolve().parents[4] / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )

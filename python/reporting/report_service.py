@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 import os
 import re
+import sys
 from pathlib import Path
 
 import requests
@@ -18,7 +19,8 @@ from reporting.types import Draft, WeeklyDraftsResult
 try:
     from dotenv import load_dotenv
 
-    _env_path = Path(__file__).resolve().parents[1] / ".env"
+    # report_service.py -> reporting -> python -> repo root
+    _env_path = Path(__file__).resolve().parents[2] / ".env"
     if _env_path.exists():
         load_dotenv(_env_path)
 except ImportError:
@@ -57,7 +59,12 @@ def _jira_search(jql: str, fields: list[str]) -> list[dict[str, Any]]:
         resp = requests.post(url, headers=headers, auth=(jira_email, jira_api_token), json=payload, timeout=30)
         resp.raise_for_status()
         return resp.json().get("issues", [])
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        # Intentionally minimal: helps debug "empty weekly Jira" without leaking secrets.
+        # Enable by setting DEBUG_JIRA=1.
+        if os.getenv("DEBUG_JIRA") == "1":
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            print(f"[report_service] Jira request failed status={status}: {e}", file=sys.stderr)
         return []
 
 
