@@ -10,7 +10,7 @@ A Model Context Protocol (MCP) server that enables AI assistants to search and r
 - **Get Page by ID**: Retrieve specific pages by their Confluence ID
 - **Context-Aware Operations**: AI can understand existing documentation before suggesting changes
 - **Weekly status drafting (full-stack)**: Generate **weekly progress** and **weekly manager review** drafts from Jira activity, edit in a small web UI, and copy/paste into Confluence
-- **Semantic search (RAG)**: Index Confluence pages into a local vector store and search them by meaning, not just keywords — see [docs/RAG.md](docs/RAG.md)
+- **Hybrid search (RAG)**: Index Confluence pages into a local vector store, then search them by vector similarity, local BM25 keyword matching, or both fused via Reciprocal Rank Fusion — see [docs/RAG.md](docs/RAG.md)
 
 ## Problem this solves
 
@@ -178,7 +178,15 @@ Configure in your MCP client settings:
 
 11. **semantic_search_pages**: Vector search over previously indexed page chunks
     - Parameters: `query` (string), `top_k` (optional, default: 5), `space_key` (optional)
-    - Returns matching chunk text plus page title, URL, and heading breadcrumb, ranked by semantic similarity rather than keyword overlap. Requires pages to be indexed first via `index_confluence_pages`. See [docs/RAG.md](docs/RAG.md) for design details and current limitations.
+    - Returns matching chunk text plus page title, URL, and heading breadcrumb, ranked by semantic similarity rather than keyword overlap. Requires pages to be indexed first via `index_confluence_pages`.
+
+12. **bm25_search_pages**: Local BM25 keyword search over previously indexed page chunks
+    - Parameters: `query` (string), `top_k` (optional, default: 5), `space_key` (optional)
+    - Keyword ranking over the local index (not Confluence's CQL search) — useful for exact-term lookups within indexed pages and for comparing against the semantic/hybrid tools.
+
+13. **hybrid_search_pages**: BM25 + vector search fused via Reciprocal Rank Fusion
+    - Parameters: `query` (string), `top_k` (optional, default: 5), `space_key` (optional), `candidate_k` (optional, default: 20)
+    - Recommended default once pages are indexed: catches exact terms that pure vector search can under-rank, while still finding conceptual matches with no shared wording. See [docs/RAG.md](docs/RAG.md) for design details and current limitations.
 
 ## Example Usage
 
@@ -207,7 +215,7 @@ User: "Index all pages in the ENG space about our data pipeline"
 AI: [Uses index_confluence_pages with query="data pipeline", space_key="ENG"]
 
 User: "How do we handle schema migrations for the events table?"
-AI: [Uses semantic_search_pages to find conceptually relevant chunks even if the page never uses the word "migration"]
+AI: [Uses hybrid_search_pages to find conceptually relevant chunks, weighted up if they also mention "events" or "migration" directly]
 ```
 
 ## Security Notes

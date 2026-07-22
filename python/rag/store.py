@@ -74,6 +74,18 @@ def delete_page(page_id: str) -> None:
     collection.delete(where={"page_id": page_id})
 
 
+def get_all_chunks(space_key: Optional[str] = None) -> Dict[str, List[Any]]:
+    """Return every indexed chunk's id/text/metadata, optionally filtered by space_key.
+
+    Used by the local BM25 index (rag/bm25_index.py), which rebuilds its corpus from
+    this on every query rather than maintaining a second persisted index — so it can
+    never drift out of sync with what's actually in the vector store.
+    """
+    collection = _get_collection()
+    where = {"space_key": space_key} if space_key else None
+    return collection.get(where=where, include=["documents", "metadatas"])
+
+
 def query(embedding: List[float], top_k: int = 5, space_key: Optional[str] = None) -> List[Dict[str, Any]]:
     collection = _get_collection()
     where = {"space_key": space_key} if space_key else None

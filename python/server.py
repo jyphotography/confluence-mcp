@@ -633,6 +633,71 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["query"]
             }
+        ),
+        Tool(
+            name="bm25_search_pages",
+            description=(
+                "Local BM25 keyword search over previously indexed Confluence page chunks "
+                "(distinct from search_pages, which hits Confluence's own CQL search API "
+                "and works on non-indexed pages too). Useful on its own for exact-term "
+                "lookups within the local index, and for comparing against "
+                "semantic_search_pages / hybrid_search_pages. Pages must be indexed first "
+                "via index_confluence_pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Keyword search query"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of chunks to return (default: 5)",
+                        "default": 5
+                    },
+                    "space_key": {
+                        "type": "string",
+                        "description": "Optional: restrict results to a space key"
+                    }
+                },
+                "required": ["query"]
+            }
+        ),
+        Tool(
+            name="hybrid_search_pages",
+            description=(
+                "Search indexed Confluence chunks by combining local BM25 keyword ranking "
+                "with vector semantic search, merged via Reciprocal Rank Fusion (RRF). "
+                "Generally the best default over semantic_search_pages alone: it catches "
+                "exact terms (error codes, service names, IDs) that pure vector search can "
+                "under-rank, while still finding conceptual matches with no shared wording. "
+                "Pages must be indexed first via index_confluence_pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of fused results to return (default: 5)",
+                        "default": 5
+                    },
+                    "space_key": {
+                        "type": "string",
+                        "description": "Optional: restrict results to a space key"
+                    },
+                    "candidate_k": {
+                        "type": "integer",
+                        "description": "Candidates to pull from each ranker before fusion (default: 20)",
+                        "default": 20
+                    }
+                },
+                "required": ["query"]
+            }
         )
     ]
 
@@ -901,6 +966,39 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             results = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: semantic_search(query_text, top_k=top_k, space_key=space_key)
+            )
+            return [TextContent(
+                type="text",
+                text=json.dumps({"query": query_text, "results": results}, indent=2)
+            )]
+
+        elif name == "bm25_search_pages":
+            query_text = arguments.get("query")
+            top_k = arguments.get("top_k", 5)
+            space_key = arguments.get("space_key")
+
+            from rag.bm25_index import bm25_search
+
+            results = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: bm25_search(query_text, top_k=top_k, space_key=space_key)
+            )
+            return [TextContent(
+                type="text",
+                text=json.dumps({"query": query_text, "results": results}, indent=2)
+            )]
+
+        elif name == "hybrid_search_pages":
+            query_text = arguments.get("query")
+            top_k = arguments.get("top_k", 5)
+            space_key = arguments.get("space_key")
+            candidate_k = arguments.get("candidate_k", 20)
+
+            from rag.hybrid import hybrid_search
+
+            results = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: hybrid_search(query_text, top_k=top_k, space_key=space_key, candidate_k=candidate_k)
             )
             return [TextContent(
                 type="text",
