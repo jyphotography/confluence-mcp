@@ -12,6 +12,41 @@ A Model Context Protocol (MCP) server that enables AI assistants to search and r
 - **Weekly status drafting (full-stack)**: Generate **weekly progress** and **weekly manager review** drafts from Jira activity, edit in a small web UI, and copy/paste into Confluence
 - **Hybrid search + reranking (RAG)**: Index Confluence pages into a local vector store, then search by vector similarity, local BM25 keyword matching, both fused via Reciprocal Rank Fusion, or fused-and-reranked by a local cross-encoder — with a Recall@k/MRR evaluation harness to compare them. See [docs/RAG.md](docs/RAG.md)
 
+## How It Works
+
+```mermaid
+flowchart TB
+    Client(["AI Assistant<br/>Cursor / Claude Desktop"])
+    Client -->|MCP tools| Server["confluence-mcp server"]
+
+    Server --> Reads["search_pages · get_page<br/>list_spaces · search_by_title"]
+    Reads --> ConfluenceAPI[("Confluence API")]
+
+    Server --> JiraTools["get_jira_summary · get_jira_weekly_report<br/>search_jira_tickets_by_email"]
+    JiraTools --> JiraAPI[("Jira API")]
+
+    Server --> Draft["generate_weekly_drafts"]
+    ConfluenceAPI -.-> Draft
+    JiraAPI -.-> Draft
+    Draft --> DB[("SQLite")] --> WebUI["Web UI<br/>localhost:5173"]
+
+    Server --> Index["index_confluence_pages"]
+    ConfluenceAPI -.-> Index
+    Index --> Chunk["heading-aware<br/>chunking"] --> Embed["local embeddings<br/>fastembed"] --> LocalIndex[("local vector store +<br/>BM25 index")]
+
+    Server --> Search["bm25 / semantic / hybrid /<br/>rerank search_pages"]
+    Search --> LocalIndex
+```
+
+Three groups of tools sit behind one MCP server: **direct Confluence/Jira lookups**
+(hit the Atlassian APIs live), **weekly status drafting** (pulls from both APIs,
+renders via Jinja templates, and persists to SQLite for the web UI), and **local
+hybrid search** (indexes pages once into a local vector + BM25 index, then serves
+`bm25_search_pages` / `semantic_search_pages` / `hybrid_search_pages` /
+`rerank_search_pages` from it without hitting Confluence again). See
+[docs/RAG.md](docs/RAG.md) for the indexing and retrieval pipeline in detail,
+including why it fuses BM25 + vector search via RRF and reranks with a cross-encoder.
+
 ## Problem this solves
 
 Weekly updates are easy to forget and hard to write consistently. This project turns your Jira activity (optionally combined with a few Confluence “context” pages) into manager-ready weekly drafts with a repeatable structure: highlights, progress, risks, next steps, and asks.
