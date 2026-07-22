@@ -698,6 +698,42 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["query"]
             }
+        ),
+        Tool(
+            name="rerank_search_pages",
+            description=(
+                "Highest-precision search over indexed Confluence chunks: runs "
+                "hybrid_search_pages for a larger candidate set, then re-scores those "
+                "candidates with a local cross-encoder (fastembed, no external API key) "
+                "before returning the top results. Slower than hybrid_search_pages "
+                "(the cross-encoder scores every candidate against the query), but "
+                "typically more precise -- use it when result quality matters more than "
+                "latency. Pages must be indexed first via index_confluence_pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of reranked results to return (default: 5)",
+                        "default": 5
+                    },
+                    "space_key": {
+                        "type": "string",
+                        "description": "Optional: restrict results to a space key"
+                    },
+                    "candidate_k": {
+                        "type": "integer",
+                        "description": "Candidates to retrieve (via hybrid search) before reranking (default: 20)",
+                        "default": 20
+                    }
+                },
+                "required": ["query"]
+            }
         )
     ]
 
@@ -999,6 +1035,23 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             results = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: hybrid_search(query_text, top_k=top_k, space_key=space_key, candidate_k=candidate_k)
+            )
+            return [TextContent(
+                type="text",
+                text=json.dumps({"query": query_text, "results": results}, indent=2)
+            )]
+
+        elif name == "rerank_search_pages":
+            query_text = arguments.get("query")
+            top_k = arguments.get("top_k", 5)
+            space_key = arguments.get("space_key")
+            candidate_k = arguments.get("candidate_k", 20)
+
+            from rag.rerank import rerank_search
+
+            results = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: rerank_search(query_text, top_k=top_k, space_key=space_key, candidate_k=candidate_k)
             )
             return [TextContent(
                 type="text",

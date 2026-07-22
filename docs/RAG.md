@@ -7,13 +7,15 @@ page titled "Incident Response Runbook" that never uses the word "rollback").
 
 It is additive: `search_pages` (CQL/keyword against Confluence's own API) is
 unchanged and still the right choice for exact-term or ID-style lookups against
-pages you haven't indexed. Three new tools operate on the local index instead:
+pages you haven't indexed. Four new tools operate on the local index instead:
 
 - `semantic_search_pages` — pure vector search
 - `bm25_search_pages` — pure local keyword search over the same indexed chunks
   (not Confluence's CQL — see [Why a local BM25 index](#why-a-local-bm25-index-not-confluence-cql))
-- `hybrid_search_pages` — the two merged via Reciprocal Rank Fusion; the best
-  default once pages are indexed
+- `hybrid_search_pages` — the two merged via Reciprocal Rank Fusion
+- `rerank_search_pages` — `hybrid_search_pages`'s candidates, re-scored by a local
+  cross-encoder; highest precision, higher latency. Recommended default when result
+  quality matters more than speed.
 
 ## Pipeline
 
@@ -37,12 +39,14 @@ At query time:
 
 ```
                      ┌─ semantic_search()  rag/retrieve.py  ─┐
-query_text ──────────┤                                       ├── reciprocal_rank_fusion()
-                     └─ bm25_search()      rag/bm25_index.py ─┘   rag/hybrid.py
+query_text ──────────┤                                       ├── reciprocal_rank_fusion() ── rerank()
+                     └─ bm25_search()      rag/bm25_index.py ─┘   rag/hybrid.py             rag/rerank.py
 ```
 
 `semantic_search_pages` and `bm25_search_pages` each expose one branch directly;
-`hybrid_search_pages` runs both (as `candidate_k` candidates each) and fuses them.
+`hybrid_search_pages` runs both (as `candidate_k` candidates each) and fuses them;
+`rerank_search_pages` takes hybrid's fused candidates and re-scores them with a
+cross-encoder before truncating to `top_k`.
 
 ### Why heading-aware chunking
 
@@ -86,31 +90,59 @@ list contributes `1 / (60 + rank)` to a chunk's fused score, so a chunk ranked h
 by either ranker — and especially one ranked highly by both — floats to the top,
 without needing the two scores to be normalized against each other.
 
+### Why rerank on top of hybrid, instead of just returning hybrid's results
+
+RRF only ever reorders what BM25 and vector search already ranked highly — it can't
+notice that a candidate is actually a poor match for the query, because neither
+ranker looks at the query and the candidate *together*. A cross-encoder does: it runs
+the query and each candidate through the model jointly, which is much more accurate
+but too slow to run over an entire index. So `rerank_search_pages` uses hybrid search
+to cheaply narrow the whole index down to `candidate_k` plausible candidates, then
+spends the expensive joint-scoring step only on that small set
+(`fastembed.rerank.cross_encoder.TextCrossEncoder`, default model
+`Xenova/ms-marco-MiniLM-L-6-v2`, same "local, no API key" approach as the embedding
+model).
+
 ## Usage
 
 1. Index some pages (either explicit IDs, or a keyword query to discover them first):
    - MCP tool: `index_confluence_pages` with `page_ids: ["123456"]`, or
      `query: "data pipeline", space_key: "ENG"`
-2. Query them:
-   - `hybrid_search_pages` — combined BM25 + vector, recommended default
-   - `semantic_search_pages` — vector only
-   - `bm25_search_pages` — local BM25 only
+2. Query them, in increasing order of precision (and latency):
+   - `bm25_search_pages` / `semantic_search_pages` — single-ranker, mainly useful for
+     comparison/debugging
+   - `hybrid_search_pages` — combined BM25 + vector via RRF
+   - `rerank_search_pages` — hybrid's candidates, cross-encoder reranked; recommended
+     default when quality matters more than latency
 
-The first call to any of these downloads the embedding model to the local fastembed
-cache; subsequent calls are fast. The index persists across server restarts at
-`data/rag_index/` (override with `RAG_INDEX_DIR`).
+The first call to any of these downloads the relevant model (embedding or
+cross-encoder) to the local fastembed cache; subsequent calls are fast. The index
+persists across server restarts at `data/rag_index/` (override with `RAG_INDEX_DIR`).
+
+## Evaluating retrieval quality
+
+`python/rag/eval/` scores any of the four search methods against a labeled set of
+`{query, expected_page_ids}` cases, matching at page level (not exact chunk) since
+that's the granularity a human labeling queries against real pages naturally reasons
+in. Metrics are Recall@k (what fraction of the expected pages showed up in the top k)
+and MRR (how high the first correct page ranked, averaged over all queries) —
+`python/rag/eval/metrics.py`.
+
+```bash
+# Build your own eval_set.json (see eval_set.example.json for the format) from
+# real queries you've tried against your own indexed pages, then:
+PYTHONPATH=python python3 -m rag.eval.cli python/rag/eval/eval_set.example.json -v
+```
+
+This runs all four methods against the same eval set and prints Recall@k/MRR
+side by side, so a chunking, embedding-model, or reranking change has a number to
+check against instead of eyeballing a few example queries. There's no eval set
+checked into the repo beyond the example/template — it's specific to whatever
+Confluence pages you've actually indexed and needs real page IDs to be meaningful.
 
 ## Not yet implemented
 
-This pass covers chunking + embedding + retrieval + hybrid (BM25 + vector) search.
-Planned next:
-
-- **Reranking**: pull a larger candidate set from `hybrid_search_pages` (e.g. top 20
-  via `candidate_k`), then rerank with a cross-encoder (e.g. a local bge-reranker
-  model or a hosted rerank API) before returning the top 5.
-- **Evaluation harness**: a small labeled query → expected-chunk set to track
-  Recall@k / MRR across `semantic_search_pages` / `bm25_search_pages` /
-  `hybrid_search_pages`, so chunking, embedding model, or reranking changes have a
-  number to check against instead of eyeballing results. Also an LLM-as-judge
-  faithfulness check for `generate_weekly_drafts` output against its retrieved/source
-  context.
+- **LLM-as-judge faithfulness check**: score `generate_weekly_drafts` output against
+  its retrieved/source Jira + Confluence context, to catch drafts that state things
+  the source data doesn't support. This is a different kind of eval than
+  Recall@k/MRR above — it's about generation, not retrieval.

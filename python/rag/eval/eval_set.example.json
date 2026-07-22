@@ -1,0 +1,17 @@
+[
+  {
+    "query": "how do we roll back a bad deploy",
+    "expected_page_ids": ["123456"],
+    "note": "Page is titled 'Incident Response Runbook' and never uses the word 'rollback' -- a good semantic/hybrid test case."
+  },
+  {
+    "query": "PIPE-482 root cause",
+    "expected_page_ids": ["234567"],
+    "note": "Exact ticket ID lookup -- a good bm25/hybrid test case; pure vector search may under-rank it."
+  },
+  {
+    "query": "what spaces do we have for onboarding docs",
+    "expected_page_ids": ["345678", "345679"],
+    "note": "Multiple correct pages -- exercises recall@k with more than one expected_page_id."
+  }
+]
