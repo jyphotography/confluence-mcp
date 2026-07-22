@@ -20,6 +20,7 @@ node_modules/
 
 # Local data
 data/*.db
+data/rag_index/
 
 # IDE
 .vscode/

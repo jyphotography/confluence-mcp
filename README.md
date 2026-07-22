@@ -10,6 +10,7 @@ A Model Context Protocol (MCP) server that enables AI assistants to search and r
 - **Get Page by ID**: Retrieve specific pages by their Confluence ID
 - **Context-Aware Operations**: AI can understand existing documentation before suggesting changes
 - **Weekly status drafting (full-stack)**: Generate **weekly progress** and **weekly manager review** drafts from Jira activity, edit in a small web UI, and copy/paste into Confluence
+- **Semantic search (RAG)**: Index Confluence pages into a local vector store and search them by meaning, not just keywords — see [docs/RAG.md](docs/RAG.md)
 
 ## Problem this solves
 
@@ -171,6 +172,14 @@ Configure in your MCP client settings:
    - Parameters: `week_start` (optional ISO date), `week_end` (optional ISO date), `jira_days_lookback` (optional), `confluence_page_ids` (optional array), `save_to_files` (optional), `save_to_db` (optional)
    - Saves markdown to `2026/YYYYMM/` and (optionally) stores drafts in SQLite for the web UI
 
+10. **index_confluence_pages**: Chunk, embed, and index Confluence pages for semantic search
+    - Parameters: `page_ids` (optional array) or `query` + `space_key` (optional) to discover pages to index, `limit` (optional, default: 20)
+    - Splits each page into heading-scoped chunks, embeds them locally, and stores them in a persistent local vector index. Re-indexing a page replaces its previous chunks.
+
+11. **semantic_search_pages**: Vector search over previously indexed page chunks
+    - Parameters: `query` (string), `top_k` (optional, default: 5), `space_key` (optional)
+    - Returns matching chunk text plus page title, URL, and heading breadcrumb, ranked by semantic similarity rather than keyword overlap. Requires pages to be indexed first via `index_confluence_pages`. See [docs/RAG.md](docs/RAG.md) for design details and current limitations.
+
 ## Example Usage
 
 Once configured, AI assistants can use the server like this:
@@ -193,6 +202,12 @@ AI: [Uses search_jira_tickets_by_email to find and summarize their tickets]
 
 User: "Generate my weekly progress and manager review drafts for last week"
 AI: [Uses generate_weekly_drafts tool, returns two markdown drafts]
+
+User: "Index all pages in the ENG space about our data pipeline"
+AI: [Uses index_confluence_pages with query="data pipeline", space_key="ENG"]
+
+User: "How do we handle schema migrations for the events table?"
+AI: [Uses semantic_search_pages to find conceptually relevant chunks even if the page never uses the word "migration"]
 ```
 
 ## Security Notes
