@@ -25,7 +25,7 @@ jobs:
           CONFLUENCE_API_TOKEN: test-token
           SQLITE_PATH: data/test_weekly_progress.db
         run: |
-          PYTHONPATH="python/backend:python:." pytest -q python/backend/tests
+          PYTHONPATH="python/backend:python:." pytest -q python/backend/tests python/rag/tests
 
   frontend:
     runs-on: ubuntu-latest

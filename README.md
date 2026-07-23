@@ -10,6 +10,42 @@ A Model Context Protocol (MCP) server that enables AI assistants to search and r
 - **Get Page by ID**: Retrieve specific pages by their Confluence ID
 - **Context-Aware Operations**: AI can understand existing documentation before suggesting changes
 - **Weekly status drafting (full-stack)**: Generate **weekly progress** and **weekly manager review** drafts from Jira activity, edit in a small web UI, and copy/paste into Confluence
+- **Hybrid search + reranking (RAG)**: Index Confluence pages into a local vector store, then search by vector similarity, local BM25 keyword matching, both fused via Reciprocal Rank Fusion, or fused-and-reranked by a local cross-encoder — with a Recall@k/MRR evaluation harness to compare them. See [docs/RAG.md](docs/RAG.md)
+
+## How It Works
+
+```mermaid
+flowchart TB
+    Client(["AI Assistant<br/>Cursor / Claude Desktop"])
+    Client -->|MCP tools| Server["confluence-mcp server"]
+
+    Server --> Reads["search_pages · get_page<br/>list_spaces · search_by_title"]
+    Reads --> ConfluenceAPI[("Confluence API")]
+
+    Server --> JiraTools["get_jira_summary · get_jira_weekly_report<br/>search_jira_tickets_by_email"]
+    JiraTools --> JiraAPI[("Jira API")]
+
+    Server --> Draft["generate_weekly_drafts"]
+    ConfluenceAPI -.-> Draft
+    JiraAPI -.-> Draft
+    Draft --> DB[("SQLite")] --> WebUI["Web UI<br/>localhost:5173"]
+
+    Server --> Index["index_confluence_pages"]
+    ConfluenceAPI -.-> Index
+    Index --> Chunk["heading-aware<br/>chunking"] --> Embed["local embeddings<br/>fastembed"] --> LocalIndex[("local vector store +<br/>BM25 index")]
+
+    Server --> Search["bm25 / semantic / hybrid /<br/>rerank search_pages"]
+    Search --> LocalIndex
+```
+
+Three groups of tools sit behind one MCP server: **direct Confluence/Jira lookups**
+(hit the Atlassian APIs live), **weekly status drafting** (pulls from both APIs,
+renders via Jinja templates, and persists to SQLite for the web UI), and **local
+hybrid search** (indexes pages once into a local vector + BM25 index, then serves
+`bm25_search_pages` / `semantic_search_pages` / `hybrid_search_pages` /
+`rerank_search_pages` from it without hitting Confluence again). See
+[docs/RAG.md](docs/RAG.md) for the indexing and retrieval pipeline in detail,
+including why it fuses BM25 + vector search via RRF and reranks with a cross-encoder.
 
 ## Problem this solves
 
@@ -171,6 +207,26 @@ Configure in your MCP client settings:
    - Parameters: `week_start` (optional ISO date), `week_end` (optional ISO date), `jira_days_lookback` (optional), `confluence_page_ids` (optional array), `save_to_files` (optional), `save_to_db` (optional)
    - Saves markdown to `2026/YYYYMM/` and (optionally) stores drafts in SQLite for the web UI
 
+10. **index_confluence_pages**: Chunk, embed, and index Confluence pages for semantic search
+    - Parameters: `page_ids` (optional array) or `query` + `space_key` (optional) to discover pages to index, `limit` (optional, default: 20)
+    - Splits each page into heading-scoped chunks, embeds them locally, and stores them in a persistent local vector index. Re-indexing a page replaces its previous chunks.
+
+11. **semantic_search_pages**: Vector search over previously indexed page chunks
+    - Parameters: `query` (string), `top_k` (optional, default: 5), `space_key` (optional)
+    - Returns matching chunk text plus page title, URL, and heading breadcrumb, ranked by semantic similarity rather than keyword overlap. Requires pages to be indexed first via `index_confluence_pages`.
+
+12. **bm25_search_pages**: Local BM25 keyword search over previously indexed page chunks
+    - Parameters: `query` (string), `top_k` (optional, default: 5), `space_key` (optional)
+    - Keyword ranking over the local index (not Confluence's CQL search) — useful for exact-term lookups within indexed pages and for comparing against the semantic/hybrid tools.
+
+13. **hybrid_search_pages**: BM25 + vector search fused via Reciprocal Rank Fusion
+    - Parameters: `query` (string), `top_k` (optional, default: 5), `space_key` (optional), `candidate_k` (optional, default: 20)
+    - Catches exact terms that pure vector search can under-rank, while still finding conceptual matches with no shared wording.
+
+14. **rerank_search_pages**: `hybrid_search_pages` candidates, re-scored by a local cross-encoder
+    - Parameters: `query` (string), `top_k` (optional, default: 5), `space_key` (optional), `candidate_k` (optional, default: 20)
+    - Highest precision, higher latency than the other search tools — recommended default when result quality matters more than speed. See [docs/RAG.md](docs/RAG.md) for design details, tradeoffs, and how to evaluate retrieval quality (Recall@k/MRR) across all four search tools.
+
 ## Example Usage
 
 Once configured, AI assistants can use the server like this:
@@ -193,6 +249,12 @@ AI: [Uses search_jira_tickets_by_email to find and summarize their tickets]
 
 User: "Generate my weekly progress and manager review drafts for last week"
 AI: [Uses generate_weekly_drafts tool, returns two markdown drafts]
+
+User: "Index all pages in the ENG space about our data pipeline"
+AI: [Uses index_confluence_pages with query="data pipeline", space_key="ENG"]
+
+User: "How do we handle schema migrations for the events table?"
+AI: [Uses rerank_search_pages to find and precisely rank conceptually relevant chunks, even if they never use the word "migration"]
 ```
 
 ## Security Notes

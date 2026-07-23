@@ -17,6 +17,13 @@ pydantic-settings>=2.2.0
 # Templates
 jinja2>=3.1.0
 
+# Semantic search (RAG): chunking, local embeddings + cross-encoder reranking,
+# local vector store, hybrid ranking
+beautifulsoup4>=4.12.0
+fastembed>=0.4.0
+chromadb>=0.5.0
+rank-bm25>=0.2.2
+
 # Testing
 pytest>=8.0.0
 responses>=0.25.0

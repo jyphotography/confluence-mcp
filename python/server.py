@@ -571,6 +571,169 @@ async def list_tools() -> list[Tool]:
                     }
                 }
             }
+        ),
+        Tool(
+            name="index_confluence_pages",
+            description=(
+                "Chunk and embed Confluence pages into the local semantic search index. "
+                "Provide explicit page_ids, or a keyword query (optionally scoped to a space) "
+                "to discover and index matching pages in one step via the existing CQL search. "
+                "Re-indexing a page replaces its previously indexed chunks. Run this before "
+                "using semantic_search_pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "page_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Explicit Confluence page IDs to index"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Keyword query used to discover pages to index when page_ids is omitted"
+                    },
+                    "space_key": {
+                        "type": "string",
+                        "description": "Optional: limit discovery query to a specific space key"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max pages to discover via query (default: 20)",
+                        "default": 20
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="semantic_search_pages",
+            description=(
+                "Semantic (vector) search over previously indexed Confluence page chunks. "
+                "Complements search_pages (keyword/CQL): use this for conceptual or "
+                "natural-language queries where the exact wording may not appear in the page "
+                "text. Returns chunk text with page title, URL, and heading breadcrumb for "
+                "citation. Pages must be indexed first via index_confluence_pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language search query"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of chunks to return (default: 5)",
+                        "default": 5
+                    },
+                    "space_key": {
+                        "type": "string",
+                        "description": "Optional: restrict results to a space key"
+                    }
+                },
+                "required": ["query"]
+            }
+        ),
+        Tool(
+            name="bm25_search_pages",
+            description=(
+                "Local BM25 keyword search over previously indexed Confluence page chunks "
+                "(distinct from search_pages, which hits Confluence's own CQL search API "
+                "and works on non-indexed pages too). Useful on its own for exact-term "
+                "lookups within the local index, and for comparing against "
+                "semantic_search_pages / hybrid_search_pages. Pages must be indexed first "
+                "via index_confluence_pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Keyword search query"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of chunks to return (default: 5)",
+                        "default": 5
+                    },
+                    "space_key": {
+                        "type": "string",
+                        "description": "Optional: restrict results to a space key"
+                    }
+                },
+                "required": ["query"]
+            }
+        ),
+        Tool(
+            name="hybrid_search_pages",
+            description=(
+                "Search indexed Confluence chunks by combining local BM25 keyword ranking "
+                "with vector semantic search, merged via Reciprocal Rank Fusion (RRF). "
+                "Generally the best default over semantic_search_pages alone: it catches "
+                "exact terms (error codes, service names, IDs) that pure vector search can "
+                "under-rank, while still finding conceptual matches with no shared wording. "
+                "Pages must be indexed first via index_confluence_pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of fused results to return (default: 5)",
+                        "default": 5
+                    },
+                    "space_key": {
+                        "type": "string",
+                        "description": "Optional: restrict results to a space key"
+                    },
+                    "candidate_k": {
+                        "type": "integer",
+                        "description": "Candidates to pull from each ranker before fusion (default: 20)",
+                        "default": 20
+                    }
+                },
+                "required": ["query"]
+            }
+        ),
+        Tool(
+            name="rerank_search_pages",
+            description=(
+                "Highest-precision search over indexed Confluence chunks: runs "
+                "hybrid_search_pages for a larger candidate set, then re-scores those "
+                "candidates with a local cross-encoder (fastembed, no external API key) "
+                "before returning the top results. Slower than hybrid_search_pages "
+                "(the cross-encoder scores every candidate against the query), but "
+                "typically more precise -- use it when result quality matters more than "
+                "latency. Pages must be indexed first via index_confluence_pages."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of reranked results to return (default: 5)",
+                        "default": 5
+                    },
+                    "space_key": {
+                        "type": "string",
+                        "description": "Optional: restrict results to a space key"
+                    },
+                    "candidate_k": {
+                        "type": "integer",
+                        "description": "Candidates to retrieve (via hybrid search) before reranking (default: 20)",
+                        "default": 20
+                    }
+                },
+                "required": ["query"]
+            }
         )
     ]
 
@@ -805,7 +968,96 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             }
 
             return [TextContent(type="text", text=json.dumps(payload, indent=2))]
-        
+
+        elif name == "index_confluence_pages":
+            page_ids = list(arguments.get("page_ids") or [])
+            discover_query = arguments.get("query")
+            space_key = arguments.get("space_key")
+            limit = arguments.get("limit", 20)
+
+            if not page_ids and discover_query:
+                discovered = await client.search_pages(discover_query, space_key=space_key, limit=limit)
+                page_ids = [p["id"] for p in discovered.get("pages", []) if p.get("id")]
+
+            if not page_ids:
+                return [TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {"error": "Provide page_ids, or a query to discover pages to index"}, indent=2
+                    )
+                )]
+
+            from rag.ingest import ingest_pages
+
+            result = await ingest_pages(client, page_ids)
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "semantic_search_pages":
+            query_text = arguments.get("query")
+            top_k = arguments.get("top_k", 5)
+            space_key = arguments.get("space_key")
+
+            from rag.retrieve import semantic_search
+
+            results = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: semantic_search(query_text, top_k=top_k, space_key=space_key)
+            )
+            return [TextContent(
+                type="text",
+                text=json.dumps({"query": query_text, "results": results}, indent=2)
+            )]
+
+        elif name == "bm25_search_pages":
+            query_text = arguments.get("query")
+            top_k = arguments.get("top_k", 5)
+            space_key = arguments.get("space_key")
+
+            from rag.bm25_index import bm25_search
+
+            results = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: bm25_search(query_text, top_k=top_k, space_key=space_key)
+            )
+            return [TextContent(
+                type="text",
+                text=json.dumps({"query": query_text, "results": results}, indent=2)
+            )]
+
+        elif name == "hybrid_search_pages":
+            query_text = arguments.get("query")
+            top_k = arguments.get("top_k", 5)
+            space_key = arguments.get("space_key")
+            candidate_k = arguments.get("candidate_k", 20)
+
+            from rag.hybrid import hybrid_search
+
+            results = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: hybrid_search(query_text, top_k=top_k, space_key=space_key, candidate_k=candidate_k)
+            )
+            return [TextContent(
+                type="text",
+                text=json.dumps({"query": query_text, "results": results}, indent=2)
+            )]
+
+        elif name == "rerank_search_pages":
+            query_text = arguments.get("query")
+            top_k = arguments.get("top_k", 5)
+            space_key = arguments.get("space_key")
+            candidate_k = arguments.get("candidate_k", 20)
+
+            from rag.rerank import rerank_search
+
+            results = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: rerank_search(query_text, top_k=top_k, space_key=space_key, candidate_k=candidate_k)
+            )
+            return [TextContent(
+                type="text",
+                text=json.dumps({"query": query_text, "results": results}, indent=2)
+            )]
+
         else:
             raise ValueError(f"Unknown tool: {name}")
     
